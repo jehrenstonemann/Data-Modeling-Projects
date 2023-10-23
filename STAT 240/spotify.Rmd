@@ -1,0 +1,424 @@
+---
+title: "Spotify"
+author: "Adi Tewari, Anouk Seibulescu, Donald Conway, and Xiangyu Huang"
+date: "2023-03-30"
+output:
+  cleanrmd::html_document_clean:
+      theme: stylize
+      mathjax: default
+      toc: true
+---
+```{r, echo=FALSE}
+htmltools::img(src = knitr::image_uri(file.path("../../data/Spotify-logo.png")),
+               alt = 'logo', 
+               style = 'position:absolute; top:0; right:0; padding:10px; width: 63px; height: 37px')
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r,include=FALSE}
+library(ggridges)
+library(tidyverse)
+library(lubridate)
+library(cleanrmd)
+source("../../scripts/viridis.R")
+source("../../scripts/ggprob.R")
+library(kableExtra)
+library(plotly)
+# cleanrmd::html_document_clean:
+#     theme: minicss
+#     toc: true
+#     toc_float: true
+```
+
+## Introduction
+
+- Many people across the world listen to music via Spotify. Spotify and other third parties collect data on which songs are the most popular during a given day and are able to analyze certain characteristics about the song. Just like the data scientists at Spotify our STAT 240 group wanted to see if we could analyze a characteristic about popular songs from Spotify and apply the statistical methods we have learned in class.
+
+- Our Question: Is there a significant difference between the proportion of explicit songs in the Top 0 to 50 vs Top 51 to 100 in the Billboard top 100 playlist in Spotify?
+
+- The motivation behind this question is quite simple. We simply wanted to see if perhaps more explicit songs would be in the top 50 vs the bottom 50 of the top 100. Music nowadays seems to be more explicit than ever so perhaps we may notice something.
+
+- This analysis is meant to see if there is a significant difference (95% confidence interval) between the proportion of explicit songs in the Top 0-50 vs Top 51-100 in the Billboard top 100 playlist in Spotify. The authors hope to find a significant difference between the proportions using a 2-sample z-test for difference in proportions.
+
+
+## Background
+
+- The dataset is the Billboard top 100 songs from March 30th 2023. The playlist is shown below.
+
+<!--html_preserve-->
+
+<iframe style="border-radius:12px" src="https://open.spotify.com/embed/playlist/6UeSakyzhiEt4NB3UAd6NQ?utm_source=generator&theme=0" width="100%" height="352" frameBorder="0" allowfullscreen="" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy"></iframe>
+
+<!--/html_preserve-->
+
+
+- The playlist was scraped from the Spotify website using an API called Exportify that returns a CSV of the playlist.
+
+- The csv includes the song name, URL, artist name, album name, whether the song is explicit, etc. in a tidy format.
+
+- Note: Spotify determines if a song is explicit by examining whether a song contains one or more offensive or inappropriate words in its lyrics.
+
+- Billboard Top 100 is determined by a combined measure of both sales and airplay. Sales figures are provided by retailers such as iTunes and Amazon, while Nielsen BDS tracks radio airplay.
+
+- for the rest of the report we will find the proportions of explicit songs in the top 0-50 vs top 51-100 songs in the Billboard Top 100 playlist and then we will do a 2-sample z-test for difference in proportions and a simulation to see if there is a statistically significant difference between the proportion of explicit songs in the 2 groups.
+
+- We assume that the Billboard top 100 songs on March 30th, 2023 are an accurate random sample of the populations of interest, namely, we assume that the explicit or non-explicit nature of these top 50 songs on 3/30/2023 are representative of the explicit or non-explicit nature of all top 50 songs in the Billboard top 100 list for all time. We assume that the explicit or non-explicit nature of the top 51-100 songs on 3/30/2023 is representative of the explicit or non-explicit nature of all top 51-100 songs in the Billboard top 100 list for all time. 
+
+## Analysis
+
+```{r,message=FALSE,include=FALSE}
+Top_100 <- read_csv("../../data/billboard_hot_100.csv") %>%
+  select("Track Name", "Artist Name(s)","Album Name","Album Release Date","Track Duration (ms)","Explicit","Popularity") %>% 
+  rename("Artist"="Artist Name(s)","Song" = "Track Name",
+         "Album" = "Album Name","Date" ="Album Release Date",
+         "Length(ms)" = "Track Duration (ms)") %>%
+  mutate(Feature = case_when(str_detect(Artist,",") ~ TRUE,!str_detect(Artist,",") ~ FALSE),
+         Date = ymd(Date))
+```
+
+```{r,include=FALSE}
+Top_0_50 <- Top_100[0:50,]
+Top_50_100 <- Top_100[51:100,]
+p_hat1 <- Top_0_50 %>%
+  summarise(p_hat1=mean(Explicit)) %>%
+  pull(p_hat1)
+p_hat2 <- Top_50_100 %>%
+  summarise(p_hat2=mean(Explicit)) %>%
+  pull(p_hat2)
+diff = p_hat1 - p_hat2
+```
+
+```{r,echo=FALSE}
+tibble(p_hat1,p_hat2,diff) %>%kable(align="c",) %>%
+    kable_material_dark(c("striped", "hover", "condensed", "responsive"),full_width = T)
+```
+
+```{r,echo=FALSE}
+pt1 <- Top_0_50 %>% summarise(explicit_songs = sum(Explicit), non_explicit_songs = 50-explicit_songs,
+total_songs = n())
+pt2 <- Top_50_100 %>% summarise(explicit_songs = sum(Explicit), non_explicit_songs = 50-explicit_songs, total_songs = n())
+playlist <- c("Top 0-50","Top 0-50","Top 51-100","Top 51-100")
+explicit <- c(TRUE,FALSE,TRUE,FALSE)
+number <- c(pt1$explicit_songs,
+            pt1$non_explicit_songs,
+            pt2$explicit_songs,
+            pt2$non_explicit_songs)
+for_bar <- tibble(playlist,explicit,number)
+```
+
+```{r,out.width="100%",out.height="80%",fig.align="right",echo=FALSE}
+pl1 <- ggplot(for_bar) + aes(x=playlist,y=number)
+pl2 <- pl1 + geom_col(aes(fill=explicit)) + geom_hline(yintercept = 19,linetype="longdash",color="ghostwhite",linewidth=0.7)
+pl3 <- pl2 + labs(x="Playlist",y="Number of Songs",title = "Number of explicit songs per playlist")
+ggplotly(pl3)
+```
+
+
+- The proportion of songs that are explicit in the Top 0-50 is 0.38 represented by p_hat1
+
+- The proportion of songs that are explicit in the Top 51-100 is 0.32 represented by p_hat2
+
+- The difference between the proportions is 0.06 as shown by diff
+
+- Are this difference significant? Let's consider multiple approaches.
+
+
+#### Statistical Model
+
+The statistical model is:
+
+- $p_1$ is the true probability that a song in the Top0-50 is explicit
+- $p_2$ is the true probability that a song in the Top51-100 is explicit
+
+$$
+X_1 \mid p_1 \sim \text{Binomial}(50,p_1) \\
+X_2 \mid p_2 \sim \text{Binomial}(50,p_2)
+$$
+
+
+#### Confidence Interval from Simulation
+
+- Using the p_hat1 and p_hat2 from above along with the size of each sample (50 songs) we will simulate many independent samples and use these for the unknown $p_1$ and $p_2$.
+
+- We will then calculate the standard deviation of these differences. Because this is a simulation we will use the standard deviation of the difference between $p_1$ and $p_2$ as our Standard Error
+
+```{r,echo=FALSE}
+sim <- tibble(
+  x1 = rbinom(10^6,50,p_hat1),
+  n1 = 50,
+  x2 = rbinom(10^6,50,p_hat2),
+  n2 = 50,
+  p_hat1 = x1/n1,
+  p_hat2 = x2/n2,
+  difference = p_hat1 - p_hat2
+)
+se_sim <- sim %>%
+  summarise(SE = sd(difference)) %>%
+  pull(SE)
+tibble("SE Simmulation" = se_sim) %>%
+  kable(align="c") %>%
+    kable_material_dark(c("striped", "hover", "condensed", "responsive"),full_width = FALSE)
+```
+- we can then use this Standard Error to Finish the 95% confidence interval which goes by the formula
+
+$$(\text{point estimate}) \pm 1.96 \times (\text{standard error})$$
+```{r,echo=FALSE}
+tibble(
+  Point_estimate = diff,
+  SE = se_sim,
+  z = qnorm(0.975),
+  Low = Point_estimate - z*SE,
+  High = Point_estimate + z*SE
+) %>%
+  kable(align="l") %>%
+    kable_material_dark(c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(4:5, bold = T)
+```
+
+- We are 95% confident that difference in the proprtion of explicit songs between the Top 0-50 vs Top 51-100 is between is between 0.24 higher in the 
+ Top 0-50 vs Top 51-100 and 0.12 higher in the 
+ Top 51-100 vs Top 0-50 
+
+
+#### Confidence Interval using formula
+
+- Instead of doing a simulation we can use this formula to get the standard error:
+
+$$
+\text{SE}(\hat{p}_1 - \hat{p}_2) =
+  \sqrt{ \frac{p_1(1-p_1)}{n_1} + \frac{p_2(1-p_2)}{n_2} }
+$$
+
+- We then use the same formula to get the confidence interval but instead of using a simulated SE we use the calculated SE
+
+```{r,echo=FALSE}
+n1 = 50
+n2 = 50
+se1 = sqrt(p_hat1*(1-p_hat1)/n1 )
+se2 = sqrt(p_hat2*(1-p_hat2)/n2 )
+se = sqrt(se1^2 + se2^2 )
+tibble(
+  se = se,
+  Point_estimate = diff,
+  z = qnorm(0.975),
+  Low = diff - z*se,
+  High = diff + z*se,
+)%>%
+  kable(align="l") %>%
+    kable_material_dark(c("striped", "hover", "condensed", "responsive")) %>%
+  column_spec(4:5, bold = T)
+```
+
+
+#### Hypothesis Tests for Testing Differences
+
+##### Inference question
+- Is there a statistically significant difference between the proportion of explicit songs in the Top 0 to 50 vs Top 51 to 100 in the Billboard top 100 playlist in Spotify?
+
+```{r,echo=FALSE}
+temp_0_50 <- Top_0_50 %>%
+  summarise("Explicit Songs" = sum(Explicit),
+            "Total Songs" = n(),
+            p_hat = mean(Explicit)) %>% mutate(Group = "Top 0-50") %>%
+  select(Group,everything())
+temp_51_100 <- Top_50_100 %>%
+  summarise("Explicit Songs" = sum(Explicit),
+            "Total Songs" = n(),
+            p_hat = mean(Explicit)) %>%
+  mutate(Group = "Top 51-100") %>%
+  select(Group,everything())
+bind_rows(temp_0_50,temp_51_100) %>%
+  kable(align="l") %>%
+    kable_material_dark(c("striped", "hover", "condensed", "responsive"))%>%
+  column_spec(4:4, bold = T)
+```
+
+- In the Billboard Top 100 playlist the Top 0-50 songs had 38% of their songs explicit compared to the Top 51-100 songs had 32% of their songs explicit 
+
+- We wish to explore if there a statistically significant difference between the proportion of explicit songs in the Top 0-50 vs Top 51-100
+
+
+#### Testing from Simulation
+
+#### Statistical Model
+
+The statistical model is:
+
+- $p_1$ is the probability that a song is explicit in the Top0-50
+- $p_2$ is the probability that a song is explicit in the Top51-100
+
+$$
+X_1 \mid p_1 \sim \text{Binomial}(50,p_1) \\
+X_2 \mid p_2 \sim \text{Binomial}(50,p_2)
+$$
+
+State hypotheses:
+
+$$
+H_0: p_1 = p_2 \\
+H_a: p_1 \neq p_2
+$$ 
+- The null hypothesis is there is no difference in the proportion of explicit songs in the Top 0-50 vs Top 51-100
+
+- The alternative hypothesis is that there is a difference in the proportion of explicit songs in the Top 0-50 vs Top 51-100
+
+- We will pick our significance level alpha=0.05 because this is the conventional level of significance in statistics
+
+Calculating a test statistic:
+
+- Our Test statistic is simply going to be the difference in sample proportions, $\hat{p}_1 - \hat{p}_2$.
+
+- If the null hypothesis is true, then this statistic is expected to be close to zero with differences caused by random sampling variation.
+
+- However, if the null hypothesis is false, then this statistic should be different from zero in a way such that the difference is not caused by random fluctuations
+
+```{r,echo=FALSE}
+test_stat = p_hat1 - p_hat2
+tibble(test_stat) %>%
+  kable(align="c") %>%
+    kable_material_dark(c("striped", "hover", "condensed", "responsive"))
+```
+
+Determining the null sampling distribution of the test statistic
+
+- If the null hypothesis is true, then $p_1 = p_2$ and the distribution of the test statistic is whatever it is when $X_1$ and $X_2$ are drawn with the same success probability $p$
+
+
+- To estimate $p$ we combine both samples from our data:
+$$
+\bar{p} = \frac{X_1 + X_2}{n_1 + n_2} = \frac{19 + 16}{50 + 50} = 0.35
+$$
+
+```{r,echo=FALSE}
+e1 <- Top_0_50 %>%
+  summarise(e1 = sum(Explicit)) %>%
+  pull(e1)
+e2 <- Top_50_100 %>%
+  summarise(e2 = sum(Explicit)) %>%
+  pull(e2)
+p0 <- (e1 + e2)/(n1 + n2)
+tibble(p0) %>%
+  kable(align="c") %>%
+    kable_material_dark(c("striped", "hover", "condensed", "responsive"))
+```
+
+Calculating the p-value via simulation
+- the number of replications will be $1,000,000$
+
+- We will generate binomial random variables $X_1$ and $X_2$
+
+- then we will find the difference between those sample proportions 
+
+- Finally we will calculate a p value to see often a value as extreme as that from the original data occurs. Our alternative hypothesis is $H_a: p_1 \neq p_2$ and is two-sided
+
+
+```{r,echo=FALSE}
+sim <- tibble(
+  x1 = rbinom(10^6,50,p0),
+  n1 = 50,
+  x2 = rbinom(10^6,50,p0),
+  n2 = 50,
+  p_hat1 = x1/n1,
+  p_hat2 = x2/n2,
+  difference = p_hat1 - p_hat2
+)
+pvalue_sim <- sim %>%
+  summarise(p_value = mean(abs(difference) >= diff)) %>% pull(p_value)
+tibble("p value from simmulation"=pvalue_sim) %>%
+  kable(align="c") %>%
+    kable_material_dark(c("striped", "hover", "condensed", "responsive"))
+```
+- The p value `r pvalue_sim` indicates that we fail to reject the null hypothesis because the p value is greater than 0.05. 
+
+
+#### Normal approximation for p-value
+
+- Let's also use the Theoretical approach based on a equation. We will use a z-test for difference in proportions to derive a p-value.
+
+$$
+z = \frac{(\hat{p}_1 - \hat{p}_2) - 0}{\text{SE}}
+$$
+
+- We are able to do this normal approximation because the sample sizes are large enough ($n=50$) and the estimated $p$ is not close to either 0 or 1. $np(1-p) = 12.5 > 10$, and np(1-p) > 10 is the rule of thumb we use for when it is appropriate to apply the normal approximation.
+
+- This is the equation for the standard error of the difference between 2 different proportions: 
+
+$$
+\text{SE}(\hat{p}_1 - \hat{p}_2) = \sqrt{
+\frac{p_1(1-p_1)}{n_1} + \frac{p_2(1-p_2)}{n_2} }
+$$
+
+- To estimate $p$ we combine both samples from our data using the formula below
+$$
+\bar{p} = \frac{X_1 + X_2}{n_1 + n_2} = \frac{359 + 83}{610 + 180} \doteq 0.559
+$$
+
+
+- First let's find the z statistic
+```{r,include=FALSE}
+e1 <- Top_0_50 %>%
+  summarise(e1 = sum(Explicit)) %>%
+  pull(e1)
+e2 <- Top_50_100 %>%
+  summarise(e2 = sum(Explicit)) %>%
+  pull(e2)
+p0 <- (e1 + e2)/(n1 + n2)
+SE <- sqrt(((p0*(1-p0))/n1) + ((p0*(1-p0))/n2))
+p0
+SE
+```
+
+```{r,echo=FALSE}
+z_calc = (diff - 0)/SE
+tibble("z statistic"=z_calc) %>%
+  kable(align="c") %>%
+    kable_material_dark(c("striped", "hover", "condensed", "responsive"))
+```
+
+- Using this z statistic we can get the p-value which is twice the area to the right of z under the standard normal curve.
+
+```{r,echo=FALSE}
+pvalue_z = 2*pnorm(-abs(z_calc))
+tibble("p value from z statistic"= pvalue_z) %>%
+  kable(align="c") %>%
+    kable_material_dark(c("striped", "hover", "condensed", "responsive"))
+```
+
+- The simulation and the theory results in essentially the same numerical value of the p-value which is interpreted in the same way (i.e. we fail to reject Null hypothesis at the alpha=0.05 significance level)
+
+
+#### Graphical representation
+
+```{r,out.width="100%",out.height="80%",fig.align="right",echo=FALSE}
+pl <- gnorm(color="purple") +
+  geom_vline(xintercept = z_calc,color="goldenrod3",linetype="dashed")+
+  geom_norm_fill(a=qnorm(0.975),fill="purple",alpha=0.5) + 
+  geom_norm_fill(b=qnorm(0.025),fill="purple",alpha=0.5) + theme_grey() + ggtitle("How suprising is this difference in populations?")
+ggplotly(pl)
+```
+
+- The orange dotted line would need to be in one of the purple shaded areas in order for this test to have given us statistically significant results (2 proportion z test to compare the true proportions in two populations)
+
+## Discussion
+
+- We did not find any evidence that the true proportion of explicit songs in Spotify was statistically significant at the alpha=0.05 level between the songs in the top 1-50 and the top 51-100 songs. 
+
+- It is possible that we made a type II error in falsely failing to reject the null hypothesis. This outcome is possible because we had a small sample size and it is possible that the true difference in proportions of the explicit songs in the top 1-50 versus the top 51-100 is small but nonzero. 
+
+- For future work, we propose that the relationship between the explicit songs and time be explored. We propose fitting a linear regression model to predict the proportion of explicit songs in the top 100 songs over time. We hypothesize that as the music industry has evolved, this proportion has fluctuated and believe it would be interesting to explore the relationship between time and the percent of explicit songs. 
+
+- Additionally, we propose a stronger test be conducted to further examine the hypothesis of a difference between the percent explicit songs in the top 1-50 compared to the percent of explicit songs in the top 51-100. We suggest that a random sample of days in the past three years be gathered, and for those years, the percent of explicit songs in the top 1-50 versus the top 51-100 be computed. Then, we propose an additional significance test be conducted to determine if there is truly a difference between the two populations. This larger dataset would help the difference if there merely a small difference, one that was not statistically significant in our test because our test only uses 100 data points and therefore is not a powerful test for detecting slight differences between two populations. 
+
+- In summary, we fail to reject the null hypothesis. Namely, we do not have statistically signifcant evidence at the alpha=0.05 level that there is a difference between the true proportion of explicit songs in the top 1-50 compared to the true proportion of explicit songs in the top 51-100. Our theoretical and simulated confidence interval for the difference in proportions includes 0, and our theoretical and simulated significance tests have p values > 0.05. 
+
+## Reference
+^[Is there an Explicit Content filter? - The Spotify Commun. . .. (2023, January 28). https://community.spotify.com/t5/FAQs/Is-there-an-Explicit-Content-filter/ta-p/4631272]
+
+^[Spotify - About Spotify. (2023, March 9). Spotify. https://newsroom.spotify.com/company-info/]
+
+^[Trust, G. (2014, September 7). Billboard. Billboard. https://www.billboard.com/pro/ask-billboard-how-does-the-hot-100-work/]
+
+^[What Is The Billboard Hot 100? (2023, January 2). Edmsauce. Retrieved April 10, 2023, from https://www.edmsauce.com/what-is-the-billboard-hot-100/]
