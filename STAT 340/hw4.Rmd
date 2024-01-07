@@ -1,0 +1,570 @@
+---
+title: "Homework 4"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo=T,eval=T,message=F,warning=F,fig.align='center')
+```
+
+Each part of each question will be 2.5pts, there are 20 parts, so 50pts total.
+
+
+## 1) Catamaran, revisited
+
+Startup pet supply company Catamaran is trying to better understand the spending behavior of its customers.
+In particular, the company wants to find simple ways to predict how much customers will spend on Catamaran products from their purchases of just one such product: cat litter.
+
+A (sadly, fictional) data set is stored in the file `catamaran.csv`, available from [here](https://pages.stat.wisc.edu/~bwu62/catamaran.csv).
+Download this file and save it in the same directory as your working directory (you can check this directory with `getwd()`).
+The data frame encoded in this file stores two columns:
+
+1. The column titled `litter` is the amount of cat litter, in pounds, purchased by a customer in the past year (you'll see in the data that Catamaran sells litter in three-pound increments; no, I don't think that's a realistic increment in which to sell cat littler. Fictional data is fun!).
+2. The column titled `spending` is the amount of money, in dollars, that a customer has spent on Catamaran products (including cat litter) in the past year.
+
+The following block of code loads the data in this file into a data frame `catamaran`.
+
+```{r}
+catamaran = read.csv('https://pages.stat.wisc.edu/~bwu62/catamaran.csv')
+```
+
+### Part a) inspecting the data
+
+Create a scatterplot showing customer spending as a function of how much cat litter they bought.
+Do you see a linear trend?
+Based just on looking at the scatterplot, what do you estimate the slope to be (you will not be graded on the accuracy of this estimate-- just give a best guess for fun to see how close it is to the estimated model!).
+
+```{r}
+# TODO: plotting code goes here.
+attach(catamaran)
+plot(litter, spending, main = "Litter vs Spending", xlab="Litter (lbs)", ylab="Spending (dollars)")
+```
+
+***
+
+There seems to be a linear trend. My guess for the slope would be around 2. It is positive for sure since as litter increases, spending increases. I just visually take two rough points and compute the slope by taking y2-y1 / x2-x1.
+
+***
+
+### Part b) fitting a model
+
+Fit a linear model to the Catamaran data, regressing spending against the amount of litter purchased (and an intercept term).
+
+Store the estimated intercept in a variable called `cat_intercept_hat`, and store the estimated coefficient of `litter` in a variable called `cat_slope_hat`.
+Don't forget to use the `unname()` function to strip the labels off of these, ensuring that these two variables just store numbers.
+
+```{r}
+#TODO: code goes here.
+catamaran_lm = lm(spending ~ litter, data = catamaran)
+cat_intercept_hat = summary(catamaran_lm)$coefficients["(Intercept)","Estimate"]
+cat_intercept_hat
+cat_slope_hat = summary(catamaran_lm)$coefficients["litter","Estimate"]
+cat_slope_hat
+```
+
+### Part c) interpreting the model
+
+Based on these estimates, the purchase of one additional pound of cat litter per year is associated with how many more dollars per year spent on Catamaran products?
+
+***
+
+The purchase of one additional pound of cat litter per year is associated with about 1.60 more dollars per year spent on Catamaran products
+
+***
+
+As we mentioned above, Catamaran sells cat littler in three-pound units.
+Thus, a more natural question is: the purchase of one additional three-pound unit (i.e., three additional pounds) of cat littler is associated with an increase of how many more dollars per year spent on Catamaran products?
+
+***
+
+The purchase of one additional three-pound unit of cat littler is associated with an increase of about 4.79 dollars per year spent on Catamaran products
+
+***
+
+Perhaps a more sane increment in which to sell cat litter would be twenty-pound bags.
+Based on your estimated coefficients, an additional twenty pounds of cat litter purchased per year is associated with an increase of how many more dollars per year spent on Catamaran products?
+
+***
+
+An additional twenty pounds of cat litter purchased per year is associated with an increase of about 31.93 more dollars per year spent on Catamaran products
+
+***
+
+### Part d) generating a confidence interval
+
+Of course, Catamaran's data is noisy, so there is uncertainty in our estimate of the coefficients in our model.
+
+Create a Q-Q plot to verify that the residuals of our model are approximately normal.
+Do you see anything unusual?
+You probably won't-- the observation errors in this fake data really are normal.
+Still, take a look just to be sure; it's a good habit to always at least briefly check the appropriateness of your model.
+
+```{r}
+#TODO: code goes here
+plot(catamaran_lm, which = 2)
+```
+
+
+Once you've verified that the residuals look reasonable, and hence our normality assumptions are defensible, construct a 95% confidence interval for the coefficient of `litter` in our model.
+
+
+```{r}
+# TODO: code goes here
+cat_slope_hat + c(-1,1)*1.96* summary(catamaran_lm)$coefficients["litter","Std. Error"]
+```
+
+Based on this confidence interval, should we accept or reject the null hypothesis that $\beta_1=0$ at level $\alpha=0.05$?
+
+***
+
+Reject null since the interval constructed does not include 0. Actually, it is pretty far away from 0 so we can reject the null hypothesis that beta1 = 0.
+
+***
+
+Finally, verify your answer by looking at the `summary` output of your model and check that the coefficient is or is not statistically significantly different from zero.
+
+```{r}
+# TODO: code goes here.
+summary(catamaran_lm)
+```
+
+***
+
+Coefficient is statistically significantly different from zero, meaning we have enough evidence to reject null hypothesis that beta1 = 0.
+
+***
+
+<br/><br/>
+
+## 2) Understanding the effect of noise
+
+This problem, loosely based on Problem 13 in Chapter 3 of [ISLR](https://www.statlearning.com/), will help to give you an intuition to the role of sample size (i.e., number of observations $n$) and  noise level (as captured by the variance $\sigma^2$ of the noise terms $\epsilon_i$).
+
+### Part a) generating linear data
+
+Write a function `generate_linear_data` that takes two arguments: `n` and `sigma2`, in that order, and does the following:
+
+1. Use the `rnorm()` function to create a vector `x`, containing `n` independent observations drawn from a normal distribution with mean $0$ and variance $1$. This will represent our vector of predictors.
+
+2. Use the `rnorm()` function to create a vector, `eps`, containing `n` independent observations drawn from a normal distribution with mean $0$ and variance `sigma2`. These will correspond to the errors in our observed responses.
+
+3. Using `x` and `eps`, construct a vector `y` according to the model
+$$
+Y = -1 + 0.5X + \epsilon,
+$$
+
+where $X$ corresponds to entries in our vector `x` and $\epsilon$ corresponds to entries in our vector `eps`.
+
+4. Create a data frame with two columns, `predictors` and `responses` whose entries correspond to the vectors `x` and `y`, respectively. Return this data frame.
+
+You do not need to perform any error checking in this function.
+You may assume that `n` is a positive integer and `eps` is a positive numeric.
+
+Before writing code, let's __check your understanding:__ What is the length of the vector `y`? What are the values of the intercept $\beta_0$ and slope $\beta_1$ in this linear model?
+
+***
+Length of vector y is n. Intercept is -1. Slope should be 0.5.
+***
+
+```{r}
+
+generate_linear_data = function( n, sigma2 ) {
+  # TODO: code goes here.
+  x = rnorm(n,0,1)
+  eps = rnorm(n,0,sqrt(sigma2))
+  y = -1 + 0.5*x + eps
+  df = data.frame(x,y)
+  names(df) = c("predictors","responses")
+  return(df)
+}
+```
+
+### Part b) Plotting data
+
+Use your function from Part (a) to generate 100 samples from the model
+$$
+Y = -1 + 0.5X + \epsilon,
+$$
+
+with `sigma2` set to $0.25$ and create a scatterplot of that data, showing the responses $Y$ as a function of $X$.
+You may use either `ggplot2` or R's built-in plotting utilities.
+
+Examine the point cloud and discuss:
+Does the data look approximately linear?
+Does the slope look about right?
+What about the intercept?
+__Note:__ You __do not__ need to fit a model, yet! Just inspect the data!
+
+```{r}
+# TODO: code goes here.
+attach(generate_linear_data(100, 0.25))
+plot(predictors, responses, main = "Y = -1 + 0.5X + eps NOISE 0.25", xlab="Predictors", ylab="Responses")
+```
+
+***
+
+Yes, it looks linear. Slope looks about right, since it is positive and if you take any two rought points and check with y2-y1/x2-x1. It is approximately 0.5. Intercept looks right, when x = 0, y seems to be around -1.
+
+***
+
+### Part c) the effect of noise
+
+Now, generate 100 data points again, as in part (b), but increase the noise level (i.e., the variance of the observation errors $\epsilon$) to $1$.
+That is, set `sigma2` to `1`.
+Plot the data again, and compare to the previous plot.
+What do you observe?
+
+```{r}
+# TODO: code goes here
+attach(generate_linear_data(100, 1))
+plot(predictors, responses, main = "Y = -1 + 0.5X + eps NOISE 1", xlab="Predictors", ylab="Responses")
+```
+
+***
+
+The points are now more scattered around y=-1+0.5x, indicating an increase in noise. The linear trend in the data is "harder to see".
+
+***
+
+Now, try decreasing the noise level (i.e., the variance of the $\epsilon$ terms), down to $\sigma^2 = 0.1$ and create one more plot, again with $n=100$ data points.
+What do you observe?
+
+```{r}
+
+attach(generate_linear_data(100, 0.1))
+plot(predictors, responses, main = "Y = -1 + 0.5X + eps NOISE 0.1", xlab="Predictors", ylab="Responses")
+
+```
+
+***
+
+The points are way close around y = -1+0.5x comparing to previous noise levels. This indicates a significant lower noise than previous. The linear trend in the data is "pretty easy to see".
+
+***
+
+### Part d) estimating from synthetic data
+
+Now, let's investigate how the amount of noise (i.e., the error term variance $\sigma^2$) influences our estimation of the slope $\beta_1$.
+Hopefully in your plots above you noticed that when the variance $\sigma^2$ is larger, the linear trend in the data is "harder to see".
+Perhaps unsurprisingly, but still interestingly, this translates directly into difficulty in estimating the coefficients.
+When there is more noise in our observations, our estimation of the coefficients suffers.
+
+Let's investigate this with a simulation. This part of the problem will have you write code to run a single experiment wherein we generate data and try to estimate the slope $\beta_1$.
+In Part (e) below, we'll use this single-trial code to run a Monte Carlo simulation that estimates the variance of our estimate $\hat{\beta}_1$.
+We'll be able to see how the variance of our estimate (i.e., how close we are on average to the true $\beta_1$) changes as the noise $\sigma^2$ changes.
+
+Write a function `generate_and_estimate` that takes two arguments: a sample size `n` and a variance term `sigma2`, and does the following:
+
+1. Use `generate_linear_data` to generate a collection of `n` observations from a linear model
+$$
+Y = -1 + 0.5X + \epsilon,
+$$
+where the noise term $\epsilon$ is normal with variance `sigma2`.
+
+2. Pass this data into `lm()` to fit a model predicting the column `responses` from the column `predictors` and an intercept term.
+
+3. Extract the estimate of the slope from the resulting fitted model object (hint: look at the `coefficients` attribute of the model object or use the function `coef()`). Call this `beta1hat`. __Hint:__ don't forget to use `unname()` to remove the "names" of the coefficients extracted from the model object.
+
+4. Return `beta1hat`.
+
+```{r}
+generate_and_estimate = function( n, sigma2 ) {
+  # TODO: code goes here
+  beta1hat = summary(lm(responses ~ predictors, 
+                        data = generate_linear_data(n, sigma2)))$coefficients["predictors","Estimate"]
+  return(beta1hat)
+}
+```
+
+
+### Part e) estimating variance of an estimator
+
+Now, let's write code compute a Monte Carlo estimate of the variance of our estimator $\hat{\beta}_1$.
+Note that this variance is a good way to measure the (average) squared error of our estimator. When this variance is large, it means that our estimate of $\beta_1$ is more uncertain, as we expect to be farther from the true value of $\beta_1$ more often, on average.
+
+Write a function `estimate_beta1hat_variance` that takes three arguments: a number of observations `n`, a variance `sigma2` and a number of Monte Carlo replicates `M`, and does the following:
+
+1. Use `generate_and_estimate` to generate a collection of `n` observations from a linear model
+$$
+Y = -1 + 0.5X + \epsilon,
+$$
+where the noise term $\epsilon$ is normal with variance `sigma2`, and estimate $\beta_1$. Call the resulting estimate `beta1hat`.
+
+2. Perform step 1 a total of `M` times, recording the resulting `beta1hat` each time in a vector. That is, perform `M` Monte Carlo iterations of the experiment wherein we generate random data and estimate the slope $\beta_1 = 0.5$, keeping track of our estimate in each Monte Carlo replicate.
+
+3. Compute and return the variance of our `M` random `beta1hat` replicates. This is a Monte Carlo estimate of the variance of our estimate $\hat{\beta}_1$.
+You may use either the corrected or uncorrected sample variance in this calculation.
+
+```{r}
+estimate_beta1hat_variance = function( n, sigma2, M ) {
+  # TODO: code goes here
+  replicates <- rep(NA,M)
+  for (i in 1:M){
+    beta1hat = generate_and_estimate(n,sigma2)
+    replicates[i] = beta1hat
+  }
+  return(var(replicates))
+}
+```
+
+### Part f) effect of noise on estimation accuracy
+
+Use your function from Part (e) to create a plot of the variance (as estimated from 1000 Monte Carlo iterates) of the estimator $\hat{\beta}_1$, as a function of $\sigma^2$, when $n=100$.
+Use values for $\sigma^2$ ranging from $0.25$ to $4$, inclusive, in increments of $0.25$.
+You may use either `ggplot2` or the built-in R plotting functions.
+
+__Note:__ this simulation make take a few minutes to run, since for each value of $\sigma^2$, we must perform $M=1000$ simulations, and each simulation requires fitting linear regression, which is not free!
+
+```{r}
+# TODO: code goes here
+plot(x = seq(0.25, 4, by = 0.25), 
+     y = sapply( seq(0.25, 4, by = 0.25), estimate_beta1hat_variance, n = 100, M = 1000), 
+     main = "Variance of estimator beta1hat vs Noise", 
+     xlab = "Noise", ylab = "variance of estimator beta1hat")
+```
+
+Based on your plot, how does it look like the variance of our estimator $\hat{\beta}_1$ behaves as a function of the observation error variance $\sigma^2$?
+
+If you look up the variance of $\hat{\beta}_1$ in a mathematical statistics textbook, you will find that
+$$
+\operatorname{Var} \hat{\beta}_1
+=
+\frac{ \sigma^2 }{ \sum_{i=1}^n (x_i - \bar{x})^2 }.
+$$
+
+Does this agree with your plot above?
+
+***
+
+Variance of our estimator beta1hat increases as observation error variance increases. This agrees with the formula provided since observation error variance is in the numerator, meaning its increase will cause variance of estimator beta1hat increase as well. Also, notice that it is a linear relationship between our estimator beta1hat and observation error variance in the plot, which is also true in the formula.
+
+***
+
+
+<br/><br/>
+
+## 3) More regression with `mtcars`
+
+In lecture, we worked briefly with the `mtcars` data set.
+Let's get more regression practice by working with it some more.
+
+### a) Background
+
+Run `?mtcars` in the console (please __do not__ add it to this `Rmd` file) and briefly read the help page.
+Specifically, take note of the following:
+
+1. What is the source of this data?
+2. What is this data set measuring (i.e., what was the response variable in the original study, at least based on the brief description in the R documentation)?
+3. What predictors are available and what do they mean?
+
+***
+
+1. 1974 Motor Trend US magazine.
+2. It measures fuel consumption with 10 aspects of automobile design and performance for 32 automobiles (1973–74 models). Response variable should be fuel consumption (miles/(US) gallon).
+3. There are 10 predictors. Each with its meaning is listed below:
+cyl	Number of cylinders; 
+disp	Displacement (cu.in.); 
+hp	  Gross horsepower; 
+drat	Rear axle ratio; 
+wt	  Weight (1000 lbs); 
+qsec	1/4 mile time; 
+vs	  Engine (0 = V-shaped, 1 = straight); 
+am	  Transmission (0 = automatic, 1 = manual); 
+gear	Number of forward gears; 
+carb	Number of carburetors
+
+***
+
+You may want to also run `head(mtcars, 10)` or `View(mtcars)` to inspect the data frame briefly before moving on.
+
+### b) Fitting a model
+
+Use `lm` to run a regression of `mpg` on a few predictors in the data frame (choose two or three that you think would make a good model-- don't use all ten; we'll talk about why in later lectures).
+Make sure to include `data = mtcars` as a keyword argument to `lm` so that R knows what data frame to use.
+
+```{r}
+lm.mtcars = lm(mpg~hp+wt, data = mtcars)
+plot(lm.mtcars,ask=F,which=1:2)
+```
+
+Briefly inspect the residuals plot by running `plot(lm.mtcars,ask=F,which=1:2)`.
+What do you observe, and what does it mean?
+
+***
+
+Looking at the residual plot, the residuals scattered around the middle without forming an obvious shape. Even though it plotted a curve suggesting residual tends to be higher given relatively high and low mpg and lower given middle mpg, this doesn’t look especially extreme. The points on QQ plot approximately lie on a straight line, meaning the residuals of my model are approximately normal.
+
+***
+
+### c) Interpreting the model
+
+View the summary of your model by uncommenting and running the code below.
+```{r}
+summary(lm.mtcars)
+```
+
+Pick one of your predictors and give an interpretation of the estimate and standard error for its coefficient.
+Be careful in your wording of the interpretation.
+
+***
+
+Pick: hp.
+Interpretation of estimate: A unit increase of gross horsepower while holding weight fixed will decrease 0.03 miles/(US) gallon.
+Interpretation of standard error: the standard error of 0.00903 for the gross horsepower coefficient indicates that there is a relatively small amount of uncertainty or variability in estimating the effect of horsepower on the miles/(US) gallon. This small standard error suggests that the estimated decrease in the response variable by 0.03177 units for each one-unit increase in horsepower is a quite precise estimate.
+
+***
+
+Which coefficients are statistically significantly different from zero? How do you know?
+
+***
+
+Both hp and wt are statistically significant different from zero since their p-value is small (less than alpha level 0.05)
+
+***
+
+### d) Interpreting residuals
+
+What is the Residual Standard Error (RSE) for this model? How many degrees of freedom does it have?
+
+***
+
+2.593 on 29 degrees of freedom.
+
+***
+
+What is the value of $R^2$ for this model? (__Hint:__ look at the output of `summary`) Give an interpretation of this value.
+
+***
+
+0.8268. It suggests that about 83% of the variation of the miles/(US) gallon can be explained by this model. In other words, the model is capturing a significant portion of the variability in the data.
+
+***
+
+### e) Adjusted $R^2$
+
+Briefly read about the adjusted $R^2$ [here](https://www.statisticshowto.com/probability-and-statistics/statistics-definitions/adjusted-r2/).
+What is the adjusted $R^2$ of this model and how does this differ from the usual $R^2$ value? (__Hint:__ again, look at the output of `summary`).
+
+***
+
+0.8148. Different from Multiple R-squared, the Adjusted R-squared also considers the number of predictors in the model relative to the number of observations. It adjusts the Multiple R-squared by accounting for the degrees of freedom in the model.
+
+***
+
+### f) CIs for coefficients
+
+Read the documentation for the `confint` function, and use it to generate $95\%$ confidence intervals for the coefficients of your model.
+Give an interpretation of these confidence intervals.
+
+```{r}
+confint(lm.mtcars, level=0.95)
+```
+
+***
+
+(Intercept) (33.95738245 to 40.49715778): This interval suggests that we can be 95% confident that the true value of the intercept (when all other predictors are zero) lies between approximately 33.96 and 40.50.
+
+hp (-0.05024078 to -0.01330512): This interval indicates that with 95% confidence, the true effect of horsepower on the response variable is expected to decrease the response variable between approximately 0.05024 and 0.01331 units for each one-unit increase in horsepower, holding all other variables constant. 
+
+wt: (-5.17191604 to -2.58374544): This interval indicates that with 95% confidence, the true effect of weight on the response variable is expected to decrease the response variable between approximately 5.17 and 2.58 units for each one-unit increase in weight, holding all other variables constant.
+
+***
+
+## 4) the `cats` data set
+
+The `cats` data set, included in the `MASS` library, contains data recorded from 144 cats.
+Each row of the data set contains the body weight (`Bwt`, in kgs), heart weight (`Hwt`, in grams) and the sex (`Sex`, levels `'F'` and `'M'`) for one of the cats in the data set.
+
+__Part a: plotting the data__
+
+Create a scatter plot showing heart weight on the y-axis and body weight on the x-axis.
+Ignore the `Sex` variable in this plot.
+
+```{r}
+library(MASS)
+head(cats)
+```
+
+```{r}
+# TODO: plotting code goes here.
+plot(x = cats$Bwt, y = cats$Hwt, main = "Heart weight vs Body weight", 
+     xlab = "Body weight (kg)", ylab = "Heart weight (g)")
+```
+
+Briefly describe what you see. Is there a clear trend in the data?
+
+***
+
+Ignoring sex, there is a clear pattern between body weight and heart weight. As body weight increases, heart weight increases.
+
+***
+
+__Part b: fitting a linear model__
+
+Fit a linear regression model to predict cat heart weight from cat body weight (and using an intercept term, of course).
+
+```{r}
+# TODO: regression code goes here.
+lm(Hwt ~ Bwt, data = cats)
+
+```
+
+Examine the coefficients of your fitted model.
+What is the coefficient for the `Bwt` variable?
+Interpret this coefficient-- a unit change in body weight yields how much change in heart weight?
+
+```{r}
+# TODO: additional code (if needed to extract coefficients) here
+summary(lm(Hwt ~ Bwt, data = cats))$coefficients["Bwt","Estimate"]
+```
+
+***
+
+A unit increase in body weight in kg will lead to an increase of approximately 4.03 gram increase in heart weight.
+
+***
+
+__Part c: back to plotting__
+
+Create the same plot from Part a above, but this time color the points in the scatter plot according to the `Sex` variable.
+You may use either `ggplot2` or the built-in R plotting tools, though I would recommend the former, for this.
+
+You should see a clear pattern. Describe it. A sentence or two is fine here.
+
+```{r}
+
+#TODO: plotting code goes here.
+library(ggplot2)
+ggplot(cats, aes(x = cats$Bwt, y = cats$Hwt, color = cats$Sex)) + labs(x = "Body Weight (kg)", 
+  y = "Heart Weight (g)", color = "Sex") + ggtitle("Heart weight vs Body weight for different sex") + 
+  geom_point()
+```
+
+***
+
+Still, as body weight increases, heart weight increases. Also, male cats tend to have the chance of having higher body weights comparing to female cats.
+
+***
+
+__Part d: adding `Sex` and an interaction__
+
+From looking at the data, it should be clear that the `Sex` variable has explanatory power in predicting heart weight, but it is also very correlated with body weight.
+
+Fit a new linear regression model, still predicting heart weight, but this time including both body weight and sex as predictors *and* an interaction term between body weight and sex.
+Take note of how R assigns `Sex` a dummy encoding.
+
+```{r}
+# TODO: code to specify and fit the model goes here.
+summary(lm(Hwt ~ Bwt + Sex + Bwt:Sex, data = cats))
+```
+
+Examine the outputs of your model.
+In particular, note the coefficients of `Sex` and the interaction between `Bwt` and `Sex`.
+Are both of these coefficients statistically significantly different from zero?
+How do you interpret the interaction term?
+
+***
+
+Both sex and the interaction are statistically significant different from zero since p value are both less than alpha level of 0.05. Interaction term means we are taking into account that the effect of body weight on response variable (heart weight) depends on the Sex.
+
+***
